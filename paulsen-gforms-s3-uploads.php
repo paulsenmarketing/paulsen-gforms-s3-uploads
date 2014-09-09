@@ -109,7 +109,6 @@ function run_plugin_name() {
 			    'SourceFile' => $attachment_url,
 			    'ACL'        => 'public-read'
 			));
-		?><pre><?php print_r($entry);?></pre><?php
 		}
 
 	}
