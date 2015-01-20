@@ -81,38 +81,59 @@ function run_plugin_name() {
 		}
 	}
 
+
 	// Upload to S3 after submission
-	add_action('gform_after_submission', 'post_to_third_party', 10, 2);
-	function post_to_third_party($entry, $form) {
+	add_action('gform_after_submission', 'process_attachments', 10, 2);
+	function process_attachments($entry, $form) {
 		if ($entry['form_id'] == GFORM_S3_FORM_ID) {
-			// Instantiate the S3 client with your AWS credentials
-			$client = S3Client::factory(array(
-			    'key'    => AWS_ACCESS_KEY_ID,
-			    'secret' => AWS_SECRET_ACCESS_KEY,
-			));
 
-			$attachment_url = $entry[GFORM_S3_FIELD_ID];
+			// Grab the field value
+			$field_value = $entry[GFORM_S3_FIELD_ID];
 
-			$wp_upload_dir = wp_upload_dir();
+			// If multi-uplaod is enabled for the field, the value will be a JSON string.
+			// Decode it so we can test if it's an array
+			$field_value_decoded = json_decode($field_value);
 
-			$upload_path = str_replace(home_url(), '', $wp_upload_dir['baseurl']);
+			// If we have an aray, loop through it and upload each file
+			// Else, just uplaod the one file.
+			if (is_array($field_value_decoded)) {
+				foreach ($field_value_decoded as $attachment_url) {
+					upload_to_s3($attachment_url);
+				}
+			} else {
+				upload_to_s3($field_value);
+			}
 
-			$upload_filename = str_replace($wp_upload_dir['baseurl'], '', $attachment_url);
 
-			$attachment_url = $wp_upload_dir['basedir'] . $upload_filename;
-
-			// Upload an object by streaming the contents of a file
-			// $pathToFile should be absolute path to a file on disk
-			$result = $client->putObject(array(
-			    'Bucket'     => GFORM_S3_BUCKET,
-			    'Key'        => $upload_path . $upload_filename,
-			    'SourceFile' => $attachment_url,
-			    'ACL'        => 'public-read'
-			));
 		}
 
 	}
 
+	function upload_to_s3($attachment_url) {
+		// Instantiate the S3 client with your AWS credentials
+		$client = S3Client::factory(array(
+		    'key'    => AWS_ACCESS_KEY_ID,
+		    'secret' => AWS_SECRET_ACCESS_KEY,
+		));
+
+		$wp_upload_dir = wp_upload_dir();
+
+		$upload_path = str_replace(home_url(), '', $wp_upload_dir['baseurl']);
+
+		$upload_filename = str_replace($wp_upload_dir['baseurl'], '', $attachment_url);
+
+		$attachment_url = $wp_upload_dir['basedir'] . $upload_filename;
+
+		// Upload an object by streaming the contents of a file
+		// $pathToFile should be absolute path to a file on disk
+		$result = $client->putObject(array(
+		    'Bucket'     => GFORM_S3_BUCKET,
+		    'Key'        => $upload_path . $upload_filename,
+		    'SourceFile' => $attachment_url,
+		    'ACL'        => 'public-read'
+		));
+
+	}
 
 }
 run_plugin_name();
